@@ -1181,6 +1181,7 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
     // point (even with an unmodified def), so skip it if possible.
     // This check was present in KitKat.
     if (def.nBufferCountActual < def.nBufferCountMin + *minUndequeuedBuffers) {
+    const OMX_U32 reportedBufferCount = def.nBufferCountActual;
 #endif
     for (OMX_U32 extraBuffers = 2 + 1; /* condition inside loop */; extraBuffers--) {
         OMX_U32 newBufferCount =
@@ -1198,7 +1199,26 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
                 mComponentName.c_str(), newBufferCount, err);
         /* exit condition */
         if (extraBuffers == 0) {
+#ifdef BOARD_CANT_REALLOCATE_OMX_BUFFERS
+            // Some codecs (e.g. TI's Ducati) only accept a port definition
+            // change while in the Loaded state and reject it with
+            // OMX_ErrorIncorrectStateOperation when the output port is
+            // reconfigured during playback. Keep using the buffer count the
+            // component already reported for the newly negotiated format
+            // instead of failing the whole reconfiguration.
+            if (reportedBufferCount == 0) {
+                return err;
+            }
+            def.nBufferCountActual = reportedBufferCount;
+            if (*minUndequeuedBuffers >= reportedBufferCount) {
+                *minUndequeuedBuffers = 0;
+            }
+            ALOGW("[%s] keeping the component's buffer count (%u)",
+                    mComponentName.c_str(), reportedBufferCount);
+            break;
+#else
             return err;
+#endif
         }
     }
 #ifdef BOARD_CANT_REALLOCATE_OMX_BUFFERS
