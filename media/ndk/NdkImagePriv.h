@@ -33,7 +33,8 @@ using namespace android;
 // TODO: this only supports ImageReader
 struct AImage {
     AImage(AImageReader* reader, int32_t format, uint64_t usage, BufferItem* buffer,
-           int64_t timestamp, int32_t width, int32_t height, int32_t numPlanes);
+           int64_t timestamp, int32_t width, int32_t height, int32_t numPlanes,
+           const Rect& crop = Rect::EMPTY_RECT);
 
     // free all resources while keeping object alive. Caller must obtain reader lock
     void close() { close(-1); }
@@ -52,6 +53,7 @@ struct AImage {
     media_status_t getWidth(/*out*/int32_t* width) const;
     media_status_t getHeight(/*out*/int32_t* height) const;
     media_status_t getFormat(/*out*/int32_t* format) const;
+    media_status_t getCropRect(/*out*/AImageCropRect* rect) const;
     media_status_t getNumPlanes(/*out*/int32_t* numPlanes) const;
     media_status_t getTimestamp(/*out*/int64_t* timestamp) const;
 
@@ -81,6 +83,8 @@ struct AImage {
     const int32_t              mWidth;
     const int32_t              mHeight;
     const int32_t              mNumPlanes;
+    // Crop rectangle reported by the producer (clipped to the buffer size).
+    const Rect                 mCrop;
     bool                       mIsClosed = false;
     mutable Mutex              mLock;
 };

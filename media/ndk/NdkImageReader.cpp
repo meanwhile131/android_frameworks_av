@@ -451,7 +451,7 @@ AImageReader::acquireImageLocked(/*out*/AImage** image, /*out*/int* acquireFence
                 readerWidth, readerHeight, mNumPlanes);
     } else {
         *image = new AImage(this, mFormat, mUsage, buffer, buffer->mTimestamp,
-                bufferWidth, bufferHeight, mNumPlanes);
+                bufferWidth, bufferHeight, mNumPlanes, buffer->mCrop);
     }
     mAcquiredImages.push_back(*image);
 
@@ -526,20 +526,12 @@ int
 AImageReader::getBufferWidth(BufferItem* buffer) {
     if (buffer == NULL) return -1;
 
-    if (!buffer->mCrop.isEmpty()) {
-        return buffer->mCrop.getWidth();
-    }
-
     return buffer->mGraphicBuffer->getWidth();
 }
 
 int
 AImageReader::getBufferHeight(BufferItem* buffer) {
     if (buffer == NULL) return -1;
-
-    if (!buffer->mCrop.isEmpty()) {
-        return buffer->mCrop.getHeight();
-    }
 
     return buffer->mGraphicBuffer->getHeight();
 }

@@ -16,6 +16,8 @@
 
 #include <inttypes.h>
 
+#include <algorithm>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NdkImage"
 
@@ -32,9 +34,9 @@ using namespace android;
 #define ALIGN(x, mask) ( ((x) + (mask) - 1) & ~((mask) - 1) )
 
 AImage::AImage(AImageReader* reader, int32_t format, uint64_t usage, BufferItem* buffer,
-        int64_t timestamp, int32_t width, int32_t height, int32_t numPlanes) :
+        int64_t timestamp, int32_t width, int32_t height, int32_t numPlanes, const Rect& crop) :
         mReader(reader), mFormat(format), mUsage(usage), mBuffer(buffer), mLockedBuffer(nullptr),
-        mTimestamp(timestamp), mWidth(width), mHeight(height), mNumPlanes(numPlanes) {
+        mTimestamp(timestamp), mWidth(width), mHeight(height), mNumPlanes(numPlanes), mCrop(crop) {
 }
 
 AImage::~AImage() {
@@ -140,6 +142,30 @@ AImage::getFormat(int32_t* format) const {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
     *format = mFormat;
+    return AMEDIA_OK;
+}
+
+media_status_t
+AImage::getCropRect(AImageCropRect* rect) const {
+    if (rect == nullptr) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
+    *rect = {0, 0, 0, 0};
+    if (isClosed()) {
+        ALOGE("%s: image %p has been closed!", __FUNCTION__, this);
+        return AMEDIA_ERROR_INVALID_OBJECT;
+    }
+    if (mCrop.isEmpty()) {
+        rect->left = 0;
+        rect->top = 0;
+        rect->right = mWidth;
+        rect->bottom = mHeight;
+    } else {
+        rect->left = std::max(0, mCrop.left);
+        rect->top = std::max(0, mCrop.top);
+        rect->right = std::min(mCrop.right, mWidth);
+        rect->bottom = std::min(mCrop.bottom, mHeight);
+    }
     return AMEDIA_OK;
 }
 
@@ -671,22 +697,10 @@ media_status_t AImage_getCropRect(const AImage* image, /*out*/AImageCropRect* re
                 __FUNCTION__, image, rect);
         return AMEDIA_ERROR_INVALID_PARAMETER;
     }
-    // For now AImage only supports camera outputs where cropRect is always full window
-    int32_t width = -1;
-    media_status_t ret = image->getWidth(&width);
-    if (ret != AMEDIA_OK) {
-        return ret;
-    }
-    int32_t height = -1;
-    ret = image->getHeight(&height);
-    if (ret != AMEDIA_OK) {
-        return ret;
-    }
-    rect->left = 0;
-    rect->top = 0;
-    rect->right = width;
-    rect->bottom = height;
-    return AMEDIA_OK;
+    // The crop rectangle is the producer-declared visible region of the buffer
+    // (e.g. a video decoder may pad the picture inside a larger buffer). Fall
+    // back to the full buffer when the producer did not specify one.
+    return image->getCropRect(rect);
 }
 
 EXPORT
